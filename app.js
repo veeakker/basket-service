@@ -19,6 +19,56 @@ app.get('/ensure', async function( req, res, next ) {
   }
 } );
 
+app.post('/confirm/:uuid', async function( req, res, next ) {
+  try {
+    const sessionId = req.get('mu-session-id');
+    const basketUuid = req.params["uuid"];
+    // 1. verify basket belongs to your session
+    const isOurBasket = await query(`
+      PREFIX mu: <http://mu.semte.ch/vocabularies/core/>
+      PREFIX veeakker: <http://veeakker.be/vocabularies/shop/>
+
+      SELECT ?s WHERE {
+        GRAPH <http://mu.semte.ch/application> {
+          VALUES ?s { <http://example.com/yes-i-exist> }
+          ${sparqlEscapeUri(sessionId)} veeakker:hasBasket ?basket.
+          ?basket
+            mu:uuid ${sparqlEscapeString(basketUuid)};
+            veeakker:basketOrderStatus <http://veeakker.be/order-statuses/draft>.
+        }
+      }`);
+    console.log({isOurBasket});
+    if( isOurBasket.results.bindings.length == 0 ) {
+      throw "This is not yoru basket or it is not in draft state.";
+    }
+    // 2. set basket state to <http://veeakker.be/order-statuses/confirmed>
+    await update(`
+      PREFIX mu: <http://mu.semte.ch/vocabularies/core/>
+      PREFIX veeakker: <http://veeakker.be/vocabularies/shop/>
+
+      DELETE {
+        GRAPH <http://mu.semte.ch/application> {
+          ?basket veeakker:basketOrderStatus ?status.
+        }
+      } INSERT {
+        GRAPH <http://mu.semte.ch/application> {
+          ?basket veeakker:basketOrderStatus <http://veeakker.be/order-statuses/confirmed>.
+        }
+      } WHERE {
+        GRAPH <http://mu.semte.ch/application> {
+          ${sparqlEscapeUri(sessionId)} veeakker:hasBasket ?basket.
+          ?basket
+            mu:uuid ${sparqlEscapeString(basketUuid)};
+            veeakker:basketOrderStatus ?status.
+        }
+      }`);
+    res.send(200,JSON.stringify({"done": true}));
+  } catch (e) {
+    console.log(e);
+    next(e);
+  }
+});
+
 async function ensureBasketExists(req) {
   const sessionId = req.get('mu-session-id');
 
@@ -46,7 +96,6 @@ async function ensureBasketExists(req) {
 async function makeBasket( req ) {
   const sessionId = req.get('mu-session-id');
   let uuid = makeUuid();
-
   await update(`
     PREFIX mu: <http://mu.semte.ch/vocabularies/core/>
     PREFIX veeakker: <http://veeakker.be/vocabularies/shop/>
