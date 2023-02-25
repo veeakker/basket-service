@@ -1,23 +1,61 @@
 // see https://github.com/mu-semtech/mu-javascript-template for more info
 import { app, query, update, errorHandler, sparqlEscapeUri, sparqlEscapeString, sparqlEscapeDateTime, uuid as makeUuid } from 'mu';
 import { querySudo, updateSudo } from '@lblod/mu-auth-sudo';
+import { basketJsonApi } from './lib/jsonapi';
+import { ensureBasketGraph } from './lib/user-graph';
+import { ensureBasketExists, addOrderLine, removeOrderLine } from './lib/basket';
 
 app.get('/ensure', async function( req, res, next ) {
   // query the database for a basket attached to the current session
+  // TODO:should return the basket and all the order lines
   try {
-    const uuid = await ensureBasketExists(req);
+    const sessionId = req.get('mu-session-id');
+    const uuid = await ensureBasketExists(sessionId);
 
-    res.send(JSON.stringify({
-      data: {
-        type: "baskets",
-        id: uuid
-      }
-    }));
+    res.send(JSON.stringify(await basketJsonApi(uuid, sessionId)));
   } catch (e) {
     console.log(e);
     next(e);
   }
 } );
+
+app.post('/add-order-line', async function( req, res, next ) {
+  // TODO: allow merging of same offering
+  try {
+    const sessionId = req.get("mu-session-id");
+    const uuid = await ensureBasketExists(sessionId);
+    const { offeringUuid, amount } = req.body;
+    await addOrderLine({sessionId, basketUuid: uuid, offeringUuid, amount });
+
+    res.send(JSON.stringify({"succeed": true}));
+  } catch(e) {
+    console.log(e);
+    next(e);
+  }
+});
+
+app.post('/delete-order-line', async function( req, res, next ) {
+  try {
+    const sessionId = req.get("mu-session-id");
+    const uuid = await ensureBasketExists(sessionId);
+    const { orderLineUuid } = req.body;
+    await removeOrderLine({sessionId, basketUuid: uuid, orderLineUuid });
+
+    res.send(JSON.stringify({"succeed": true}));
+  } catch (e) {
+    console.log(e);
+    next(e);
+  }
+});
+
+app.post('/merge-graphs', async function( req, res, next) {
+  // TODO: Merge the session graph and the graph for the logged in user.
+});
+
+app.post('/order-lines', async function( req, res, next) {
+  // TODO: Should overwrite all order-lines with the content from this call's
+  // body.
+});
 
 app.post('/confirm/:uuid', async function( req, res, next ) {
   try {
@@ -69,116 +107,5 @@ app.post('/confirm/:uuid', async function( req, res, next ) {
     next(e);
   }
 });
-
-/**
- * Get the graph for the user's account or null.
- */
-async function getUserAccountGraph(sessionId) {
-  const searchGraph = await querySudo(`${PREFIXES}
-    SELECT ?graph WHERE {
-      GRAPH ?graph {
-        ?graph veeakker:graphBelongsToUser/foaf:account/^session:account ${sparqlEscapeUri(sessionId)}.
-      }
-    }`);
-
-  if( searchGraph.results.bindings.length > 0 )
-    return searchGraph.results.bindings[0].graph.value;
-  else
-    return null;
-}
-
-/**
- * Get the graph for the user's session or null.
- */
-async function getSessionGraph(sessionId) {
-  const searchGraph = await querySudo(`${PREFIXES}
-    SELECT ?graph WHERE {
-      GRAPH ?graph {
-        ?graph veeakker:graphBelongsToSession ${sparqlEscapeUri(sessionId)}.
-      }
-    }`);
-
-  if( searchGraph.results.bindings.length > 0 )
-    return searchGraph.results.bindings[0].graph.value;
-  else
-    return null;
-}
-
-/**
- * Ensures a graph exists for the baskte and yields that graph.
- */
-async function ensureBasketGraph(req) {
-  // Ensures a graph exists to store the current user's or session's
-  // graph.
-  const sessionId = req.get('mu-session-id');
-
-  const currentGraph =
-        (await getUserAccountGraph(sessionId))
-        || (await getSessionGraph(sessionId));
-
-  if (currentGraph ) {
-    return currentGraph;
-  } else {
-    // TODO: ensure our login service creates the graph for the user on login
-
-    // create the graph for the session
-    await updateSudo(`${PREFIXES}
-      INSERT DATA {
-        GRAPH ${sparqlEscapeUri(sessionId)} {
-          ${sparqlEscapeUri(sessionId)} veeakker:graphBelongsToSession ${sparqlEscapeUri(sessionId)}.
-        }
-      }`);
-
-    return sessionId;
-  }
-}
-
-/**
- * Ensures the session has a basket, returning its uuid.
- */
-async function ensureBasketExists(req) {
-  const sessionId = req.get('mu-session-id');
-  const graph = await ensureBasketGraph(req);
-
-  const basketQuery = `
-    PREFIX mu: <http://mu.semte.ch/vocabularies/core/>
-    PREFIX veeakker: <http://veeakker.be/vocabularies/shop/>
-
-    SELECT ?uuid WHERE {
-      GRAPH ${sparqlEscapeUri(graph)} {
-        ${sparqlEscapeUri(sessionId)} veeakker:hasBasket ?basket.
-        ?basket veeakker:basketOrderStatus <http://veeakker.be/order-statuses/draft>;
-          mu:uuid ?uuid.
-      }
-    }`;
-
-  const response = await querySudo(basketQuery);
-  if (response.results.bindings.length > 0) {
-    return response.results.bindings[0].uuid.value;
-  } else {
-    const uuid = await makeBasket(sessionId, graph);
-    return uuid;
-  }
-}
-
-async function makeBasket(sessionId, graph) {
-  let uuid = makeUuid();
-  await updateSudo(`
-    PREFIX mu: <http://mu.semte.ch/vocabularies/core/>
-    PREFIX veeakker: <http://veeakker.be/vocabularies/shop/>
-
-    INSERT DATA {
-      GRAPH ${sparqlEscapeUri(graph)} {
-        ${sparqlEscapeUri(sessionId)} veeakker:hasBasket <http://veeakker.be/baskets/${uuid}>.
-        <http://veeakker.be/baskets/${uuid}>
-          a veeakker:Basket;
-          mu:uuid ${sparqlEscapeString(uuid)};
-          veeakker:basketOrderStatus <http://veeakker.be/order-statuses/draft>;
-          veeakker:statusChangedAt ${sparqlEscapeDateTime(new Date())}.
-      }
-    }`);
-
-  return uuid;
-}
 
 app.use(errorHandler);
