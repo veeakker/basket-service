@@ -3,7 +3,7 @@ import { app, query, update, errorHandler, sparqlEscapeUri, sparqlEscapeString, 
 import { querySudo, updateSudo } from '@lblod/mu-auth-sudo';
 import { basketJsonApi } from './lib/jsonapi';
 import { ensureBasketGraph } from './lib/user-graph';
-import { ensureBasketExists, addOrderLine, removeOrderLine, persistInvoiceAddress, persistDeliveryAddress } from './lib/basket';
+import { ensureBasketExists, addOrderLine, removeOrderLine, persistInvoiceAddress, persistDeliveryAddress, persistDeliveryMeta } from './lib/basket';
 
 app.get('/ensure', async function( req, res, next ) {
   // query the database for a basket attached to the current session
@@ -75,7 +75,8 @@ app.post('/persist-delivery-info', async function( req, res, next ) {
   try {
     const sessionId = req.get("mu-session-id");
     const uuid = await ensureBasketExists(sessionId);
-    const { basketUuid, deliveryAddress, deliveryPostal } = req.body;
+    const { basketUuid, deliveryAddress, deliveryPostal,
+            hasCustomDeliveryPlace, deliveryPlaceUuid, deliveryType } = req.body;
 
     if( uuid !== basketUuid )
       throw "Basket id is not the last basket id.";
@@ -85,6 +86,14 @@ app.post('/persist-delivery-info', async function( req, res, next ) {
       basketUuid: uuid,
       deliveryAddress: deliveryAddress.attributes,
       deliveryPostal: deliveryPostal.attributes
+    });
+
+    await persistDeliveryMeta({
+      graph: sessionId,
+      basketUuid: uuid,
+      hasCustomDeliveryPlace,
+      deliveryPlaceUuid,
+      deliveryType
     });
 
     res.send(JSON.stringify({"succeed": true}));
@@ -107,7 +116,7 @@ app.post('/confirm/:uuid', async function( req, res, next ) {
   try {
     const sessionId = req.get('mu-session-id');
     const basketUuid = req.params["uuid"];
-    const graph = ensureBasketGraph(sessionId);
+    const graph = await ensureBasketGraph(sessionId);
     // 1. verify basket belongs to your session
     const isOurBasket = await querySudo(`
       PREFIX mu: <http://mu.semte.ch/vocabularies/core/>
