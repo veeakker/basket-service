@@ -3,7 +3,7 @@ import { app, query, update, errorHandler, sparqlEscapeUri, sparqlEscapeString, 
 import { querySudo, updateSudo } from '@lblod/mu-auth-sudo';
 import { basketJsonApi } from './lib/jsonapi';
 import { ensureBasketGraph } from './lib/user-graph';
-import { ensureBasketExists, addOrderLine, removeOrderLine, persistInvoiceAddress, persistDeliveryAddress, persistDeliveryMeta } from './lib/basket';
+import { ensureBasketExists, addOrderLine, removeOrderLine, persistInvoiceAddress, persistDeliveryAddress, persistDeliveryMeta, basketUuidBelongsToSession } from './lib/basket';
 
 app.get('/ensure', async function( req, res, next ) {
   // query the database for a basket attached to the current session
@@ -18,6 +18,20 @@ app.get('/ensure', async function( req, res, next ) {
     next(e);
   }
 } );
+
+app.get('/previous/:uuid', async function( req, res, next ) {
+  try {
+    const sessionId = req.get('mu-session-id');
+    const basketUuid = req.params["uuid"];
+    if( ! basketUuidBelongsToSession( basketUuid, sessionId ) )
+      throw "Basket does not belong to user";
+
+    res.send(JSON.stringify(await basketJsonApi(basketUuid, sessionId)));
+  } catch (e) {
+    console.log(e);
+    next(e);
+  }
+});
 
 app.post('/add-order-line', async function( req, res, next ) {
   // TODO: allow merging of same offering
