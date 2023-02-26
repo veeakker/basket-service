@@ -3,7 +3,7 @@ import { app, query, update, errorHandler, sparqlEscapeUri, sparqlEscapeString, 
 import { querySudo, updateSudo } from '@lblod/mu-auth-sudo';
 import { basketJsonApi } from './lib/jsonapi';
 import { ensureBasketGraph } from './lib/user-graph';
-import { ensureBasketExists, addOrderLine, removeOrderLine } from './lib/basket';
+import { ensureBasketExists, addOrderLine, removeOrderLine, persistInvoiceAddress, persistDeliveryAddress } from './lib/basket';
 
 app.get('/ensure', async function( req, res, next ) {
   // query the database for a basket attached to the current session
@@ -40,6 +40,52 @@ app.post('/delete-order-line', async function( req, res, next ) {
     const uuid = await ensureBasketExists(sessionId);
     const { orderLineUuid } = req.body;
     await removeOrderLine({sessionId, basketUuid: uuid, orderLineUuid });
+
+    res.send(JSON.stringify({"succeed": true}));
+  } catch (e) {
+    console.log(e);
+    next(e);
+  }
+});
+
+app.post('/persist-invoice-info', async function( req, res, next ) {
+  try {
+    const sessionId = req.get("mu-session-id");
+    const uuid = await ensureBasketExists(sessionId);
+    const { basketUuid, invoiceAddress, invoicePostal } = req.body;
+
+    if( uuid !== basketUuid )
+      throw "Basket id is not the last basket id.";
+
+    await persistInvoiceAddress({
+      graph: sessionId,
+      basketUuid: uuid,
+      invoiceAddress: invoiceAddress.attributes,
+      invoicePostal: invoicePostal.attributes
+    });
+
+    res.send(JSON.stringify({"succeed": true}));
+  } catch (e) {
+    console.log(e);
+    next(e);
+  }
+});
+
+app.post('/persist-delivery-info', async function( req, res, next ) {
+  try {
+    const sessionId = req.get("mu-session-id");
+    const uuid = await ensureBasketExists(sessionId);
+    const { basketUuid, deliveryAddress, deliveryPostal } = req.body;
+
+    if( uuid !== basketUuid )
+      throw "Basket id is not the last basket id.";
+
+    await persistDeliveryAddress({
+      graph: sessionId,
+      basketUuid: uuid,
+      deliveryAddress: deliveryAddress.attributes,
+      deliveryPostal: deliveryPostal.attributes
+    });
 
     res.send(JSON.stringify({"succeed": true}));
   } catch (e) {
