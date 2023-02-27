@@ -21,7 +21,7 @@ app.get('/previous/:uuid', async function( req, res, next ) {
   try {
     const sessionId = req.get('mu-session-id');
     const basketUuid = req.params["uuid"];
-    const basketInfo = basketUuidBelongsToSession( basketUuid, sessionId );
+    const basketInfo = await basketUuidBelongsToSession( basketUuid, sessionId );
     if( !basketInfo  )
       throw "Basket does not belong to user";
 
