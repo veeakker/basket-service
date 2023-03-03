@@ -1,8 +1,7 @@
 // see https://github.com/mu-semtech/mu-javascript-template for more info
-import { app, query, update, errorHandler, sparqlEscapeUri, sparqlEscapeString, sparqlEscapeDateTime, uuid as makeUuid } from 'mu';
+import { app, errorHandler, sparqlEscapeUri, sparqlEscapeString } from 'mu';
 import { querySudo, updateSudo } from '@lblod/mu-auth-sudo';
 import { basketJsonApi } from './lib/jsonapi';
-import { ensureBasketGraph } from './lib/user-graph';
 import { ensureBasketExists, addOrderLine, removeOrderLine, persistInvoiceAddress, persistDeliveryAddress, persistDeliveryMeta, basketUuidBelongsToSession, mergeBasketFromSessionToAccountGraph } from './lib/basket';
 
 app.get('/ensure', async function( req, res, next ) {
