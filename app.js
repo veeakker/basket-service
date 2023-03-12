@@ -1,5 +1,5 @@
 // see https://github.com/mu-semtech/mu-javascript-template for more info
-import { app, errorHandler, sparqlEscapeUri, sparqlEscapeString } from 'mu';
+import { app, errorHandler, sparqlEscapeUri, sparqlEscapeString, sparqlEscapeDateTime } from 'mu';
 import { querySudo, updateSudo } from '@lblod/mu-auth-sudo';
 import { basketJsonApi } from './lib/jsonapi';
 import { ensureBasketExists, addOrderLine, removeOrderLine, persistInvoiceAddress, persistDeliveryAddress, persistDeliveryMeta, basketUuidBelongsToSession, mergeBasketFromSessionToAccountGraph } from './lib/basket';
@@ -160,11 +160,15 @@ app.post('/confirm/:uuid', async function( req, res, next ) {
 
       DELETE {
         GRAPH ${sparqlEscapeUri(graph)} {
-          ?basket veeakker:basketOrderStatus ?status.
+          ?basket
+            veeakker:basketOrderStatus ?status;
+            veeakker:statusChangedAt ?changedDate.
         }
       } INSERT {
         GRAPH ${sparqlEscapeUri(graph)} {
-          ?basket veeakker:basketOrderStatus <http://veeakker.be/order-statuses/confirmed>.
+          ?basket
+            veeakker:basketOrderStatus <http://veeakker.be/order-statuses/confirmed>;
+            veeakker:statusChangedAt ${sparqlEscapeDateTime(new Date())}.
         }
       } WHERE {
         GRAPH ${sparqlEscapeUri(graph)} {
@@ -172,6 +176,9 @@ app.post('/confirm/:uuid', async function( req, res, next ) {
           ?basket
             mu:uuid ${sparqlEscapeString(basketUuid)};
             veeakker:basketOrderStatus ?status.
+          OPTIONAL {
+            ?basket veeakker:statusChangedAt ?changedDate.
+          }
         }
       }`);
     res.send(200,JSON.stringify({"done": true}));
