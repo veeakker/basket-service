@@ -178,7 +178,7 @@ app.post('/confirm/:uuid', async function( req, res, next ) {
         }
       } WHERE {
         GRAPH ${sparqlEscapeUri(graph)} {
-          ${sparqlEscapeUri(sessionId)} veeakker:hasBasket ?basket.
+          ${sparqlEscapeUri(graph)} veeakker:hasBasket ?basket.
           ?basket
             mu:uuid ${sparqlEscapeString(basketUuid)};
             veeakker:basketOrderStatus ?status.
