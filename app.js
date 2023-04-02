@@ -2,7 +2,7 @@
 import { app, errorHandler, sparqlEscapeUri, sparqlEscapeString, sparqlEscapeDateTime } from 'mu';
 import { querySudo, updateSudo } from '@lblod/mu-auth-sudo';
 import { basketJsonApi } from './lib/jsonapi';
-import { ensureBasketExists, addOrderLine, removeOrderLine, persistInvoiceAddress, persistDeliveryAddress, persistDeliveryMeta, basketUuidBelongsToSession, mergeBasketFromSessionToAccountGraph } from './lib/basket';
+import { ensureBasketExists, addOrderLine, removeOrderLine, persistInvoiceAddress, persistDeliveryAddress, persistDeliveryMeta, basketUuidBelongsToSession, mergeBasketFromSessionToAccountGraph, registerBasketChanged } from './lib/basket';
 
 app.get('/ensure', async function( req, res, next ) {
   try {
@@ -38,6 +38,7 @@ app.post('/add-order-line', async function( req, res, next ) {
     const { graph, basketUri, basketUuid } = await ensureBasketExists(sessionId);
     const { offeringUuid, amount } = req.body;
     await addOrderLine({sessionId, basketUuid, basketUri, graph, offeringUuid, amount });
+    await registerBasketChanged({ basketUri, graph });
 
     res.send(JSON.stringify({"succeed": true}));
   } catch(e) {
@@ -52,6 +53,7 @@ app.post('/delete-order-line', async function( req, res, next ) {
     const { graph, basketUri, basketUuid } = await ensureBasketExists(sessionId);
     const { orderLineUuid } = req.body;
     await removeOrderLine({sessionId, basketUuid, basketUri, graph, orderLineUuid });
+    await registerBasketChanged({ basketUri, graph });
 
     res.send(JSON.stringify({"succeed": true}));
   } catch (e) {
@@ -76,6 +78,8 @@ app.post('/persist-invoice-info', async function( req, res, next ) {
       invoiceAddress: invoiceAddress.attributes,
       invoicePostal: invoicePostal.attributes
     });
+
+    await registerBasketChanged({ basketUri, graph });
 
     res.send(JSON.stringify({"succeed": true}));
   } catch (e) {
@@ -110,6 +114,8 @@ app.post('/persist-delivery-info', async function( req, res, next ) {
       deliveryPlaceUuid,
       deliveryType
     });
+
+    await registerBasketChanged({ basketUri, graph });
 
     res.send(JSON.stringify({"succeed": true}));
   } catch (e) {
@@ -181,6 +187,7 @@ app.post('/confirm/:uuid', async function( req, res, next ) {
           }
         }
       }`);
+    await registerBasketChanged({ basketUri, graph });
     res.send(200,JSON.stringify({"done": true}));
   } catch (e) {
     console.log(e);
