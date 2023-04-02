@@ -143,7 +143,7 @@ app.post('/confirm/:uuid', async function( req, res, next ) {
       SELECT ?s WHERE {
         GRAPH ${sparqlEscapeUri(graph)} {
           VALUES ?s { <http://example.com/yes-i-exist> }
-          ${sparqlEscapeUri(sessionId)} veeakker:hasBasket ?basket.
+          ?user veeakker:hasBasket ?basket.
           ?basket
             mu:uuid ${sparqlEscapeString(receivedBasketUuid)};
             veeakker:basketOrderStatus <http://veeakker.be/order-statuses/draft>.
@@ -151,7 +151,7 @@ app.post('/confirm/:uuid', async function( req, res, next ) {
       }`);
     console.log({isOurBasket});
     if( isOurBasket.results.bindings.length == 0 ) {
-      throw "This is not yoru basket or it is not in draft state.";
+      throw "This is not your basket or it is not in draft state.";
     }
     // 2. set basket state to <http://veeakker.be/order-statuses/confirmed>
     await updateSudo(`
