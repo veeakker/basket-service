@@ -2,7 +2,7 @@
 import { app, errorHandler, sparqlEscapeUri, sparqlEscapeString, sparqlEscapeDateTime } from 'mu';
 import { querySudo, updateSudo } from '@lblod/mu-auth-sudo';
 import { basketJsonApi } from './lib/jsonapi';
-import { ensureBasketExists, addOrderLine, removeOrderLine, persistInvoiceAddress, persistDeliveryAddress, persistDeliveryMeta, basketUuidBelongsToSession, mergeBasketFromSessionToAccountGraph, registerBasketChanged } from './lib/basket';
+import { ensureBasketExists, addOrderLine, removeOrderLine, setOrderLineComment, persistInvoiceAddress, persistDeliveryAddress, persistDeliveryMeta, basketUuidBelongsToSession, mergeBasketFromSessionToAccountGraph, registerBasketChanged } from './lib/basket';
 
 app.get('/ensure', async function( req, res, next ) {
   try {
@@ -36,12 +36,25 @@ app.post('/add-order-line', async function( req, res, next ) {
   try {
     const sessionId = req.get("mu-session-id");
     const { graph, basketUri, basketUuid } = await ensureBasketExists(sessionId);
-    const { offeringUuid, amount } = req.body;
-    await addOrderLine({sessionId, basketUuid, basketUri, graph, offeringUuid, amount });
+    const { offeringUuid, amount, comment } = req.body;
+    await addOrderLine({sessionId, basketUuid, basketUri, graph, offeringUuid, amount, comment });
     await registerBasketChanged({ basketUri, graph });
 
     res.send(JSON.stringify({"succeed": true}));
   } catch(e) {
+    console.log(e);
+    next(e);
+  }
+});
+
+app.post('/add-comment-to-order-line', async function( req, res, next ) {
+  try {
+    const sessionId = req.get("mu-session-id");
+    const { graph } = await ensureBasketExists(sessionId);
+    const { orderLineUuid, comment } = req.body;
+    await setOrderLineComment({graph, orderLineUuid, comment });
+    res.send(JSON.stringify({"succeed": true}));
+  } catch (e) {
     console.log(e);
     next(e);
   }
