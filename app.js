@@ -36,8 +36,8 @@ app.post('/add-order-line', async function( req, res, next ) {
   try {
     const sessionId = req.get("mu-session-id");
     const { graph, basketUri, basketUuid } = await ensureBasketExists(sessionId);
-    const { offeringUuid, amount, comment } = req.body;
-    await addOrderLine({sessionId, basketUuid, basketUri, graph, offeringUuid, amount, comment });
+    const { offeringUuid, shopUuid, amount, comment } = req.body;
+    await addOrderLine({sessionId, basketUuid, shopUuid, basketUri, graph, offeringUuid, amount, comment });
     await registerBasketChanged({ basketUri, graph });
 
     res.send(JSON.stringify({"succeed": true}));
